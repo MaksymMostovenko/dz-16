@@ -1,152 +1,108 @@
 package test;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.restassured.RestAssured;
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.http.ContentType;
-import io.restassured.http.Cookie;
-import io.restassured.http.Cookies;
-import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
-import org.testng.Assert;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TestSteps {
-    private Response response;
+    private static final Logger logger = LogManager.getLogger(TestSteps.class);
     private String token;
     private int bookingId;
     private final int SUCCESS_CODE = 200;
+    private static final String AUTH_ENDPOINT = "/auth/";
+    private static final String BOOKING_ENDPOINT = "/booking/";
+    private static final String BOOKING_ENDPOINT_ID = "/booking/{bookingid}";
     private final String baseUrl = "https://restful-booker.herokuapp.com";
-    public TestSteps(){
+    private final String authRequestBody = "{\"username\": \"admin\", \"password\": \"password123\"}";
+
+    public TestSteps() {
         RestAssured.baseURI = "https://restful-booker.herokuapp.com/";
         RestAssured.requestSpecification = new RequestSpecBuilder()
                 .addHeader("Content-Type", "application/json")
                 .build();
     }
-    private final String authRequestBody = "{\"username\": \"admin\", \"password\": \"password123\"}";
-    public TestSteps authenticate(){
-        response = RestAssured.given()
+
+
+
+    public TestSteps authenticate() {
+        logger.info("Authenticating...");
+        Response apiResponce = RestAssured.given()
+                .header("Accept", "application/json")
                 .contentType(ContentType.JSON)
                 .body(authRequestBody)
-                .post("/auth");
+                .post(AUTH_ENDPOINT);
+
+        token = apiResponce.getCookie("token");
         return this;
     }
 
-    public TestSteps getAuthTocken(){
-        token = response.jsonPath().getString("token");
-        return this;
-    }
-
-    public TestSteps getCookie(){
-        Cookie tokenCookie = new Cookie.Builder("token", token)
-                .setDomain(baseUrl)
-                .setPath("/")
+    public TestSteps addNewBooking() {
+        logger.info("Sending booking request...");
+        NewBooking booking = NewBooking.builder()
+                .firstname("Ivan")
+                .lastname("Piddubnyy")
+                .totalprice(42)
+                .depositpaid(true)
+                .bookingdates(NewBooking
+                        .BookingDates.builder().checkin("2023-01-01").checkout("2023-08-01").build())
+                .additionalneeds("None")
                 .build();
 
-        Cookies cookies = new Cookies(tokenCookie);
-        RestAssured.filters((req, res, ctx) -> {
-            req.cookies(cookies);
-            return ctx.next(req, res);
-        });
-        return this;
-    }
-
-    public TestSteps assessStatusCode(){
-        int statusCode = response.getStatusCode();
-        Assert.assertEquals(statusCode, SUCCESS_CODE);
-        return this;
-    }
-
-    private final String  PLACE_BOOKING_DATA = "{\"firstname\": \"Ivan\", " +
-                                                "\"lastname\": \"Piddubnyy\", " +
-                                                "\"totalprice\": 42, " +
-                                                "\"depositpaid\": false, " +
-                                                "\"bookingdates\": " +
-                                                    "{\"checkin\": \"2023-01-01\", " +
-                                                    "\"checkout\": \"2023-08-01\"}, " +
-                                                "\"additionalneeds\": \"None\"}";
-    public TestSteps sendBookingRequest() {
-        response = RestAssured.given()
+        Response apiResponce = RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(PLACE_BOOKING_DATA)
-                .post("/booking");
+                .cookie("token", token)
+                .body(booking)
+                .post(BOOKING_ENDPOINT);
 
-        int statusCode = response.getStatusCode();
-        String responseBody = response.getBody().asString();
-        JsonPath jsonPath = new JsonPath(responseBody);
-        bookingId = jsonPath.getInt("bookingid");
+        apiResponce.then().statusCode(SUCCESS_CODE);
         return this;
     }
 
-    public TestSteps getBookingDetails() {
-        response = RestAssured.given()
-                .pathParam("bookingId", bookingId)
-                .get("/booking/{bookingId}");
-        return this;
-    }
-
-    public TestSteps assessBooking(){
-        String responseBody = response.getBody().asString();
-        JsonPath jsonPath = new JsonPath(responseBody);
-
-        // Perform assertions on the booking details
-        JsonPath expectedBooingData = new JsonPath(PLACE_BOOKING_DATA);
-        String actualFirstName = jsonPath.getString("firstname");
-        String expectedFirstName = expectedBooingData.getString("firstname");
-        Assert.assertEquals(actualFirstName, expectedFirstName);
-
-        String actualLastName = jsonPath.getString("lastname");
-        String expectedLastName = expectedBooingData.getString("lastname");
-        Assert.assertEquals(actualLastName, expectedLastName);
-
-        String actualTotalPrice = jsonPath.getString("totalprice");
-        String expectedTotalPrice = expectedBooingData.getString("totalprice");
-        Assert.assertEquals(actualTotalPrice, expectedTotalPrice);
-
-        String actualDeposite = jsonPath.getString("depositpaid");
-        String expectedDeposite = expectedBooingData.getString("depositpaid");
-        Assert.assertEquals(actualDeposite, expectedDeposite);
-
-        String actualBookingDatesCheckIn = jsonPath.getString("bookingdates.checkin");
-        String expectedBookingDatesCheckIn = expectedBooingData.getString("bookingdates.checkin");
-        Assert.assertEquals(actualBookingDatesCheckIn, expectedBookingDatesCheckIn);
-
-        String actualAdditionalNeeds = jsonPath.getString("additionalneeds");
-        String expectedAdditionalNeeds = expectedBooingData.getString("additionalneeds");
-        Assert.assertEquals(actualAdditionalNeeds, expectedAdditionalNeeds);
+    public TestSteps getAllBookingIds(){
+        logger.info("Get all booking Ids...");
+        Response apiResponce = RestAssured.get(BOOKING_ENDPOINT);
+        apiResponce.then().statusCode(SUCCESS_CODE);
+        apiResponce.prettyPrint();
 
         return this;
     }
 
+    private void getAllIds(){
+        Response apiResponce = RestAssured.get(BOOKING_ENDPOINT);
+        apiResponce.then().statusCode(SUCCESS_CODE);
+        this.bookingId = apiResponce.jsonPath().get("[0].bookingid");
+    }
 
-    private final String EDITED_BOOKING_DATA = "{\"firstname\": \"editedName\", " +
-                                                "\"lastname\": \"editedLastName\", " +
-                                                "\"additionalneeds\": \"Black Jack and Hookers\"}";
-    public TestSteps editBooking(int editBookingId){
-        response = RestAssured.given()
+    private void getToken(){
+        Response apiResponce = RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(EDITED_BOOKING_DATA)
-                .pathParam("bookingId", editBookingId)
-                .put("/booking/{bookingId}");
+                .body(authRequestBody)
+                .post(AUTH_ENDPOINT);
+        apiResponce.prettyPrint();
+        this.token = apiResponce.getCookie("token");
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public TestSteps patchBookingPrice(){
+        this.getToken();
+        this.getAllIds();
+        Response response = RestAssured.given()
+                .contentType("application/json")
+                .accept("application/json")
+                .cookie("token", this.token)
+                .body("{\n" + "\"totalprice\" : 100,\n" + "}")
+                .patch(BOOKING_ENDPOINT_ID,this.bookingId);
+
+        response.prettyPrint();
+        response.then().statusCode(SUCCESS_CODE);
+
+        System.out.println("debug");
 
         return this;
     }
 
-    public TestSteps assessEditBookingData() {
-        String responseBody = response.getBody().asString();
-        JsonPath jsonPath = new JsonPath(responseBody);
-        JsonPath expectedBooingData = new JsonPath(EDITED_BOOKING_DATA);
-
-        String actualFirstName = jsonPath.getString("firstname");
-        String expectedFirstName = expectedBooingData.getString("firstname");
-        Assert.assertEquals(actualFirstName, expectedFirstName);
-
-        String actualLastName = jsonPath.getString("lastname");
-        String expectedLastName = expectedBooingData.getString("lastname");
-        Assert.assertEquals(actualLastName, expectedLastName);
-
-        String actualAdditionalNeeds = jsonPath.getString("additionalneeds");
-        String expectedAdditionalNeeds = expectedBooingData.getString("additionalneeds");
-        Assert.assertEquals(actualAdditionalNeeds, expectedAdditionalNeeds);
-
-        return this;
-    }
 }
