@@ -11,13 +11,9 @@ import org.json.JSONObject;
 
 public class TestSteps {
     public static final String HTTPS_RESTFUL_BOOKER = "https://restful-booker.herokuapp.com/booking/";
-    private String token;
-    private String bookingId;
     private final int SUCCESS_CODE = 200;
     private static final String AUTH_ENDPOINT = "/auth/";
     private static final String BOOKING_ENDPOINT = "/booking/";
-    private static final String BOOKING_ENDPOINT_ID = "/booking/{bookingid}";
-    private final String baseUrl = "https://restful-booker.herokuapp.com";
     private final String authRequestBody = "{\"username\": \"admin\", \"password\": \"password123\"}";
 
     public TestSteps() {
@@ -35,8 +31,15 @@ public class TestSteps {
                 .contentType(ContentType.JSON)
                 .body(authRequestBody)
                 .post(AUTH_ENDPOINT);
+        apiResponce.then()
+                .assertThat()
+                .statusCode(200)
+                .body("token", Matchers.notNullValue())
+                .body("token.length()", Matchers.is(15))
+                .body("token", Matchers.matchesRegex("^[a-z0-9]+$"));
 
-        token = apiResponce.getCookie("token");
+
+        String token = apiResponce.getCookie("token");
         return this;
     }
 
@@ -58,103 +61,135 @@ public class TestSteps {
                             .body(booking)
                             .when()
                             .post(BOOKING_ENDPOINT);
-        response.prettyPrint();
 
-        this.bookingId = response.jsonPath().get("bookingid").toString();
+        String bookingId = response.jsonPath().get("bookingid").toString();
+
+        Response responce =  RestAssured.given()
+                .baseUri(HTTPS_RESTFUL_BOOKER+bookingId)
+                .accept("application/json")
+                .get();
+
+        responce.then()
+                .assertThat()
+                .statusCode(SUCCESS_CODE)
+                .body("firstname", Matchers.equalTo("Ivan"))
+                .body("lastname", Matchers.equalTo("Piddubnyy"))
+                .body("totalprice", Matchers.equalTo(42))
+                .body("depositpaid", Matchers.equalTo(true))
+                .body("additionalneeds", Matchers.equalTo("None"));
 
         return this;
     }
 
+    public void assertBookingAdd(){
+
+    }
+
     public TestSteps getAllBookingIds(){
-        RestAssured
+        Response responce =  RestAssured
                 .given()
-                    .baseUri(HTTPS_RESTFUL_BOOKER)
-                    .get()
-                .then()
+                .baseUri(HTTPS_RESTFUL_BOOKER)
+                .get();
+
+        responce.then()
+                .assertThat()
                     .statusCode(SUCCESS_CODE);
 
         return this;
     }
 
-    public void getBooking(){
-        Response responce =  RestAssured.given()
-                .baseUri(HTTPS_RESTFUL_BOOKER+this.bookingId)
-                .accept("application/json")
-                .get();
-        responce.prettyPrint();
-
-        responce.then()
-                .assertThat()
-                    .statusCode(SUCCESS_CODE)
-                    .body("firstname", Matchers.equalTo("Ivan"))
-                    .body("lastname", Matchers.equalTo("Piddubnyy"))
-                    .body("totalprice", Matchers.equalTo(42))
-                    .body("depositpaid", Matchers.equalTo(true))
-                    .body("additionalneeds", Matchers.equalTo("None"));
-
-
-    }
-
-    private void getAllIds(){
+    private String getFirstId(){
         Response apiResponce = RestAssured.get(BOOKING_ENDPOINT);
         apiResponce.then().statusCode(SUCCESS_CODE);
-        this.bookingId = apiResponce.jsonPath().get("[0].bookingid").toString();
+        return apiResponce.jsonPath().get("[0].bookingid").toString();
     }
 
-    private void getToken(){
+    private String getToken(){
         Response apiResponce = RestAssured.given()
                 .contentType(ContentType.JSON)
                 .body(authRequestBody)
                 .post(AUTH_ENDPOINT);
 
         apiResponce.then().statusCode(SUCCESS_CODE);
-        this.token = apiResponce.getBody().asString();
+        String token = apiResponce.getBody().asString();
 
-        JSONObject str = new JSONObject(this.token);
-        this.token = str.getString("token");
+        JSONObject str = new JSONObject(token);
+        return str.getString("token");
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public TestSteps patchBookingPrice(){
-        JSONObject requestBody = new JSONObject();
-        requestBody.put("totalprice", "42");
 
-        this.getToken();
-        this.getAllIds();
+        String requestBody="{\"totalprice\" : 45}";
+        String token = this.getToken();
+        String patchedId = this.getFirstId();
 
-
-        Response response = RestAssured
+        Response responce = RestAssured
                         .given()
-                            .baseUri(HTTPS_RESTFUL_BOOKER+this.bookingId)
-                            .contentType("application/json")
-                            .accept("application/json")
-                            .cookie("token", this.token)
+                            .baseUri(HTTPS_RESTFUL_BOOKER+patchedId)
+                            .header("Accept","application/json")
                             .contentType(ContentType.JSON)
+                            .cookie("token", token)
                             .body(requestBody)
                         .patch();
-
-        response.then()
+        responce.then()
                 .assertThat()
                 .statusCode(SUCCESS_CODE)
-                .body("totalprice", Matchers.comparesEqualTo(42));
-
-//        RestAssured
-//                .given()
-//                    .baseUri(HTTPS_RESTFUL_BOOKER+this.bookingId)
-//                    .contentType("application/json")
-//                    .accept("application/json")
-//                    .cookie("token", this.token)
-//                    .contentType(ContentType.JSON)
-//                    .body(requestBody)
-//                .when()
-//                    .patch()
-//                .then()
-//                    .assertThat()
-//                    .statusCode(SUCCESS_CODE)
-//                    .body("totalprice", Matchers.comparesEqualTo(42));
+                .body("totalprice",Matchers.equalTo(45));
 
         return this;
 
     }
 
+    public void putNewData(){
+        String patchedId = this.getFirstId();
+        String token = this.getToken();
+
+        Response responce =  RestAssured.given()
+                .baseUri(HTTPS_RESTFUL_BOOKER+patchedId)
+                .accept("application/json")
+                .get();
+
+        String data =  responce.getBody().asString();
+        JSONObject jData = new JSONObject(data);
+        jData.put("firstname", "Maksym");
+        jData.put("additionalneeds", "black-jack");
+        String requestBody = jData.toString();
+
+
+        Response newResponce = RestAssured
+                .given()
+                .baseUri(HTTPS_RESTFUL_BOOKER+patchedId)
+                .header("Accept","application/json")
+                .contentType(ContentType.JSON)
+                .cookie("token", token)
+                .body(requestBody)
+                .put();
+
+    }
+
+    public void deleteBooking(){
+        String deleteId = this.getFirstId();
+        String token = this.getToken();
+        final int SUCCESSFUL_DELETE = 201;
+        final int URL_FORBIDEN = 404;
+
+        RestAssured
+                .given()
+                .baseUri(HTTPS_RESTFUL_BOOKER+deleteId)
+                .cookie("token", token)
+                .when()
+                .delete()
+                .then()
+                .assertThat()
+                .statusCode(SUCCESSFUL_DELETE);
+
+        RestAssured
+                .given()
+                .baseUri(HTTPS_RESTFUL_BOOKER+deleteId)
+                .when()
+                .get()
+                .then()
+                .statusCode(URL_FORBIDEN);
+    }
 }

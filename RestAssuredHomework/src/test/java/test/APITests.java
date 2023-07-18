@@ -15,7 +15,6 @@ public class APITests {
     @Test
     public void addBookingTest(){
         apiTestSteps.addNewBooking();
-        apiTestSteps.getBooking();
     }
 
     @Test
@@ -29,7 +28,12 @@ public class APITests {
     }
 
     @Test
-    public void cangeNameNeedsTest(){
+    public void changeNameNeedsTest(){
+        apiTestSteps.putNewData();
+    }
 
+    @Test
+    public void deleteBookingTest(){
+        apiTestSteps.deleteBooking();
     }
 }

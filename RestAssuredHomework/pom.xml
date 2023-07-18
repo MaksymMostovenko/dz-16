@@ -68,7 +68,7 @@
                 <version>3.0.0-M7</version>
                 <configuration>
                     <suiteXmlFiles>
-                        <suiteXmlFile>RestAssuredHomework/src/test/resources/regresion.xml</suiteXmlFile>
+                        <suiteXmlFile>./src/test/resources/regresion.xml</suiteXmlFile>
                     </suiteXmlFiles>
                 </configuration>
             </plugin>
