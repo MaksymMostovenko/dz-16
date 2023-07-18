@@ -5,14 +5,11 @@ import io.restassured.RestAssured;
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hamcrest.Matchers;
 import org.json.JSONObject;
 
 
 public class TestSteps {
-    private static final Logger logger = LogManager.getLogger(TestSteps.class);
     public static final String HTTPS_RESTFUL_BOOKER = "https://restful-booker.herokuapp.com/booking/";
     private String token;
     private String bookingId;
@@ -33,7 +30,6 @@ public class TestSteps {
 
 
     public TestSteps authenticate() {
-        logger.info("Authenticating...");
         Response apiResponce = RestAssured.given()
                 .header("Accept", "application/json")
                 .contentType(ContentType.JSON)
@@ -45,7 +41,6 @@ public class TestSteps {
     }
 
     public TestSteps addNewBooking() {
-        logger.info("Sending booking request...");
         NewBooking booking = NewBooking.builder()
             .firstname("Ivan")
             .lastname("Piddubnyy")
@@ -71,7 +66,6 @@ public class TestSteps {
     }
 
     public TestSteps getAllBookingIds(){
-        logger.info("Get all booking Ids...");
         RestAssured
                 .given()
                     .baseUri(HTTPS_RESTFUL_BOOKER)
